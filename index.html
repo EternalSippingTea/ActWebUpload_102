@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload File</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <main class="container">
+        <header>
+            <h1>Upload File</h1>
+        </header>
+
+        <section class="card">
+            <form id="uploadForm" action="upload.php" method="post" enctype="multipart/form-data">
+                <label class="upload-box" for="fileToUpload">
+                    <h2>Click here to choose a file</h2>
+                    <input type="file" name="fileToUpload" id="fileToUpload" accept="*/*">
+                </label>
+
+                <div class="preview" id="filePreview">
+                    <h3>File Preview</h3>
+                    <div id="previewInfo">
+                        <p id="previewText">No file selected.</p>
+                    </div>
+                    <div id="previewContent" class="preview-content" aria-live="polite"></div>
+                </div>
+
+                <div class="button-row">
+                    <button type="submit" class="button-link">Upload</button>
+                    <a class="button-link" href="lihat_file.php">View Files</a>
+                </div>
+            </form>
+        </section>
+    </main>
+
+    <!-- Upload result popup -->
+    <div class="modal-overlay" id="resultModal" hidden>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+            <div class="modal-icon" id="modalIcon">✓</div>
+            <h2 class="modal-title" id="modalTitle">Upload successful</h2>
+            <p class="modal-text" id="modalText"></p>
+            <div class="modal-actions">
+                <button type="button" class="button-link" id="modalClose">OK</button>
+                <a class="button-link modal-secondary" href="lihat_file.php">View Files</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileToUpload');
+        const previewText = document.getElementById('previewText');
+        const previewContent = document.getElementById('previewContent');
+        const dangerousExtensions = ['php', 'phtml', 'php3', 'php4', 'php5', 'pl', 'py', 'sh', 'exe', 'js', 'html', 'htm'];
+        const textTypes = ['text/plain', 'text/html', 'text/css', 'text/javascript', 'application/json', 'application/xml', 'application/javascript', 'application/xml+rss'];
+
+        function escapeHtml(value) {
+            return value.replace(/[&<>"']/g, (char) => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[char]));
+        }
+
+        function renderPreview(file, warningText) {
+            const ext = file.name.split('.').pop()?.toLowerCase() || '';
+            const fileType = file.type || 'Unknown';
+            previewText.innerHTML = `Name: <strong>${escapeHtml(file.name)}</strong><br>Type: ${escapeHtml(fileType)}<br>Size: ${Math.round(file.size / 1024)} KB`;
+
+            if (warningText) {
+                previewText.innerHTML += `<br><span class="preview-warning">${escapeHtml(warningText)}</span>`;
+            }
+
+            previewContent.innerHTML = '';
+
+            if (file.type.startsWith('image/')) {
+                const image = document.createElement('img');
+                image.className = 'preview-image';
+                image.alt = `Preview ${file.name}`;
+                image.src = URL.createObjectURL(file);
+                previewContent.appendChild(image);
+            } else if (textTypes.includes(file.type) || ['txt', 'csv', 'md', 'json', 'xml', 'js', 'css', 'html', 'htm'].includes(ext)) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const text = reader.result;
+                    const snippet = escapeHtml(text.slice(0, 400));
+                    const code = document.createElement('pre');
+                    code.className = 'preview-code';
+                    code.textContent = snippet + (text.length > 400 ? '\n\n...content truncated for safety.' : '');
+                    previewContent.appendChild(code);
+                };
+                reader.onerror = () => {
+                    previewContent.textContent = 'Unable to read file content.';
+                };
+                reader.readAsText(file);
+            } else {
+                previewContent.textContent = 'This file cannot be previewed. Check file name and size.';
+            }
+        }
+
+        fileInput.addEventListener('change', () => {
+            const file = fileInput.files[0];
+            if (!file) {
+                previewText.textContent = 'No file selected.';
+                previewContent.innerHTML = '';
+                return;
+            }
+
+            const ext = file.name.split('.').pop()?.toLowerCase() || '';
+            const warning = dangerousExtensions.includes(ext)
+                ? 'Warning: this file type may be risky. Make sure the server validates and does not execute it.'
+                : '';
+
+            renderPreview(file, warning);
+        });
+
+        // Upload via AJAX and show the result in a popup (no bare upload.php page).
+        const uploadForm = document.getElementById('uploadForm');
+        const submitBtn = uploadForm.querySelector('button[type="submit"]');
+        const modal = document.getElementById('resultModal');
+        const modalIcon = document.getElementById('modalIcon');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalText = document.getElementById('modalText');
+        const modalClose = document.getElementById('modalClose');
+
+        function showModal(success, message) {
+            modal.classList.toggle('is-error', !success);
+            modalIcon.textContent = success ? '✓' : '!';
+            modalTitle.textContent = success ? 'Upload successful' : 'Upload failed';
+            modalText.textContent = message;
+            modal.hidden = false;
+            modalClose.focus();
+        }
+
+        function hideModal() {
+            modal.hidden = true;
+        }
+
+        modalClose.addEventListener('click', hideModal);
+        modal.addEventListener('click', (event) => {
+            if (event.target === modal) hideModal();
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !modal.hidden) hideModal();
+        });
+
+        uploadForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const file = fileInput.files[0];
+            if (!file) {
+                showModal(false, 'Please choose a file before uploading.');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            const originalLabel = submitBtn.textContent;
+            submitBtn.textContent = 'Uploading…';
+
+            try {
+                const response = await fetch('upload.php', {
+                    method: 'POST',
+                    body: new FormData(uploadForm),
+                });
+                const text = await response.text();
+                const ok = response.ok && text.toLowerCase().includes('uploaded safely');
+                showModal(ok, text.trim());
+                if (ok) {
+                    uploadForm.reset();
+                    previewText.textContent = 'No file selected.';
+                    previewContent.innerHTML = '';
+                }
+            } catch (error) {
+                showModal(false, 'Upload failed. Please try again.');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalLabel;
+            }
+        });
+    </script>
+</body>
+</html>
