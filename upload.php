@@ -42,23 +42,13 @@ if ($uploadOk === 1) {
     }
 }
 
-// 3) Check file size (500000 bytes = 500KB)
-if ($fileSize > 500000) {
-    echo "Sorry, your file is too large.";
-    $uploadOk = 0;
-}
-
 if ($uploadOk === 0) {
     echo " Your file was not uploaded.";
     exit;
 }
 
-// 4) Generate a safe random filename; never trust the user-supplied name
-try {
-    $safeName = bin2hex(random_bytes(16)) . "." . $fileType;
-} catch (Exception $e) {
-    $safeName = uniqid("upload_", true) . "." . $fileType;
-}
+// Keep the original filename, but strip any path components to avoid traversal.
+$safeName = basename($originalName);
 $target_file = $target_dir . $safeName;
 
 if (move_uploaded_file($tmpName, $target_file)) {
@@ -67,4 +57,4 @@ if (move_uploaded_file($tmpName, $target_file)) {
 } else {
     echo "Sorry, there was an error uploading your file.";
 }
-?>
+
