@@ -1,7 +1,7 @@
 Nama : Farhan Rasyid Mustaqim
 NIM : 20240140102
 Kelas : B
-Mata Kuliah : Keamanaan Siber
+Mata Kuliah : Keamanan Siber
 
 ---
 
